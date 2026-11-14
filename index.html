@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Text to MP3 — Edge TTS</title>
+<style>
+:root{--bg:#0d141c;--card:#141f2b;--line:#2a3b4f;--tx:#eaf0f6;--mu:#9bb0c5;--acc:#e8813f;--blue:#4a9be0;--ok:#3fc9a3;--bad:#f2694b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 "Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:22px}
+h1{font-size:24px;margin:0 0 2px}h1 i{color:var(--acc)}.sub{color:var(--mu);margin:0 0 16px;font-size:14px}
+.grid{display:grid;grid-template-columns:1fr 380px;gap:16px}@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+label{display:block;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);margin:14px 0 5px}
+label:first-child{margin-top:0}label b{float:right;color:var(--tx);text-transform:none;letter-spacing:0;font-size:13px}
+textarea,select,input[type=text]{width:100%;background:#0b121a;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:inherit}
+textarea:focus,select:focus,input:focus{outline:2px solid var(--blue);outline-offset:-1px}
+#text{min-height:360px;resize:vertical;font-size:16px;line-height:1.6}#rep{min-height:84px;font-family:Consolas,monospace;font-size:13px}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.row>*{flex:1}
+button{background:var(--acc);color:#14100c;border:0;border-radius:8px;padding:11px 16px;font:inherit;font-weight:700;cursor:pointer}
+button.sec{background:#22344a;color:var(--tx)}button:disabled{opacity:.45;cursor:not-allowed}button:hover:not(:disabled){filter:brightness(1.1)}
+.meta{color:var(--mu);font-size:13px;margin-top:6px}
+.bar{height:8px;background:#0b121a;border-radius:4px;overflow:hidden;margin-top:12px}.bar div{height:100%;width:0;background:var(--acc);transition:width .2s}
+#status{font-size:13.5px;margin-top:8px;min-height:20px;color:var(--mu)}#status.err{color:var(--bad)}#status.ok{color:var(--ok)}
+audio{width:100%;margin-top:12px}a.dl{display:inline-block;text-decoration:none;background:#22344a;color:var(--tx);border-radius:8px;padding:9px 14px;font-weight:600;margin:10px 8px 0 0}a.dl.main{background:var(--ok);color:#06140f}
+.warn{background:#3a1d14;border:1px solid var(--bad);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:none}
+.small{font-size:12.5px;color:var(--mu)}.rst{float:right;font-size:12px;color:var(--blue);cursor:pointer;text-transform:none;letter-spacing:0;font-weight:400}
+</style></head><body><div class="wrap">
+<h1>Text to MP3 <i>· Edge TTS</i></h1><p class="sub">Paste a script, set the narration, get an MP3 and matching subtitles. Runs entirely in this page.</p>
+<div class="warn" id="edgeWarn"><b>Open this page in Microsoft Edge.</b> Microsoft's voice service only accepts connections from the Edge browser, so generation will fail in Chrome or Firefox.</div>
+<div class="grid">
+ <div class="card">
+  <label for="text">Text <b id="count">0 characters</b></label>
+  <textarea id="text" placeholder="Paste or type the narration here. Leave an empty line between paragraphs."></textarea>
+  <div class="row" style="margin-top:10px"><button class="sec" id="loadBtn" style="flex:0 0 auto">Load .txt file</button><input type="file" id="file" accept=".txt,.md,.srt,text/plain" hidden><span class="small" id="est"></span></div>
+  <label for="rep">Pronunciation fixes <span class="small" style="text-transform:none;letter-spacing:0;font-weight:400">— one per line: written = spoken</span></label>
+  <textarea id="rep" placeholder="PEKK = P E K K&#10;Tg = T G&#10;°C = degrees"></textarea>
+  <div class="bar"><div id="prog"></div></div><div id="status"></div>
+  <div id="out" style="display:none"><audio id="player" controls></audio><div><a class="dl main" id="dlMp3">Download MP3</a><a class="dl" id="dlSrt">Download SRT subtitles</a></div><div class="meta" id="info"></div></div>
+ </div>
+ <div class="card">
+  <label for="lang">Language</label><select id="lang"></select>
+  <label for="voice">Voice <span class="rst" id="reload">load full list</span></label><select id="voice"></select>
+  <label for="rate">Speed <b id="rateV"></b></label><input type="range" id="rate" min="-50" max="100" step="1" value="0">
+  <label for="pitch">Pitch <b id="pitchV"></b></label><input type="range" id="pitch" min="-50" max="50" step="1" value="0">
+  <label for="vol">Volume <b id="volV"></b></label><input type="range" id="vol" min="-50" max="50" step="1" value="0">
+  <label for="pPara">Pause between paragraphs <b id="pParaV"></b></label><input type="range" id="pPara" min="0" max="3" step="0.1" value="0.4">
+  <label for="pSent">Extra pause between sentences <b id="pSentV"></b></label><input type="range" id="pSent" min="0" max="1.5" step="0.05" value="0">
+  <div class="small">Above 0 s each sentence is generated separately, which is slower.</div>
+  <label for="fname">File name</label><input type="text" id="fname" value="narration">
+  <div class="row" style="margin-top:16px"><button class="sec" id="preview">Preview</button><button id="go">Generate MP3</button></div>
+  <div class="row" style="margin-top:8px"><button class="sec" id="stop" disabled>Stop</button><button class="sec" id="reset">Reset settings</button></div>
+  <p class="small" style="margin-bottom:0">Preview reads the first 250 characters with the current settings.</p>
+ </div>
+</div></div>
+<script>
+/*ENGINE-START*/
+// Sec-MS-GEC v2 token (port of edge-tts 7.3.1 drm.py)
+const GEC=(()=>{const M=0xFFFFFFFFn,u=v=>BigInt.asUintN(32,v);
+const INIT=[0x6A09E667n,0xBB67AE85n,0x3C6EF372n,0xA54FF53An,0x510E527Fn,0x9B05688Cn,0x1F83D9ABn,0x5BE0CD19n];
+const STATE=[0xFD9FBEA2n,0x91243CE7n,0xBE499094n,0xCD2E1E0An,0x6C006F49n,0x04BD35ABn,0xFEB0A7E4n,0x03EFFBD2n];
+const SCHED=[0xEB24BF9En,0x1558691Fn,0xA0C09EE2n,0x0CFA32BAn,0xA622EE8Cn,0xD1DD9491n,0xC0DD25A0n,0xF9E70AB6n,0xF0C31573n,0x7058CE4En,0x7188E606n,0x00E5AB33n,0xD258B060n,0x72766564n];
+const K=[0x428A2F98n,0x71374491n,0xB5C0FBCFn,0xE9B5DBA5n,0x3956C25Bn,0x59F111F1n,0x923F82A4n,0xAB1C5ED5n,0xD807AA98n,0x12835B01n,0x243185BEn,0x550C7DC3n,0x72BE5D74n,0x80DEB1FEn,0x9BDC06A7n,0xC19BF174n,0xE49B69C1n,0xEFBE4786n,0x0FC19DC6n,0x240CA1CCn,0x2DE92C6Fn,0x4A7484AAn,0x5CB0A9DCn,0x76F988DAn,0x983E5152n,0xA831C66Dn,0xB00327C8n,0xBF597FC7n,0xC6E00BF3n,0xD5A79147n,0x06CA6351n,0x14292967n,0x27B70A85n,0x2E1B2138n,0x4D2C6DFCn,0x53380D13n,0x650A7354n,0x766A0ABBn,0x81C2C92En,0x92722C85n,0xA2BFE8A1n,0xA81A664Bn,0xC24B8B70n,0xC76C51A3n,0xD192E819n,0xD6990624n,0xF40E3585n,0x106AA070n,0x19A4C116n,0x1E376C08n,0x2748774Cn,0x34B0BCB5n,0x391C0CB3n,0x4ED8AA4An,0x5B9CCA4Fn,0x682E6FF3n,0x748F82EEn,0x78A5636Fn,0x84C87814n,0x8CC70208n,0x90BEFFFAn,0xA4506CEBn,0xBEF9A3F7n,0xC67178F2n];
+const ADJ=0xC9DC06A7n,KB=K.slice();KB[14]=ADJ;const S0ADJ=0x059C0B80n,S1ADJ=0x000B92C0n;
+const CS=[[0xE82E91B1n,0xB32700D0n],[0x44DE24C6n,0x88DFF51Dn],[0x3BEB65BCn,0x29514038n],[0xC89C5933n,0xB328CBDFn],[0x8D1EC211n,0xD405B4D5n],[0x314EF5D5n,0x26E55F3Cn],[0xE92491B1n,0x607801C6n],[0xF0A5B9D5n,0x82B2C1FBn],[0x06064CF3n,0xFA51A3DAn],[0xDA79FA60n,0x207CC464n],[0xBED20560n,0x3C3C74F3n],[0x89F9C9F8n,0xD2D14B61n],[0x35FA38C6n,0xBB04A2C1n],[0xCB49E3C6n,0xC5626167n]];
+const CSF=0x82893933n,CA0=0xF2F90B1An,CA1=0x0B1A0000n;
+const rol16=v=>{v&=M;return((v<<16n)|(v>>16n))&M};
+const s0=v=>((v>>7n)^(v<<25n)^(v>>18n)^(v<<14n)^(v>>3n))&M,s1=v=>((v>>17n)^(v<<15n)^(v>>19n)^(v<<13n)^(v>>10n))&M;
+function rounds(st,w,first=0){let[a,b,c,d,e,f,g,h]=st;const C=first===14?KB:K;
+ for(let i=first;i<64;i++){const re=e*0x100000001n,ra=a*0x100000001n;const t1=h+((re>>6n)^(re>>11n)^(re>>25n))+(g^(e&(f^g)))+C[i]+w[i];const t2=((ra>>2n)^(ra>>13n)^(ra>>22n))+((a&b)|(c&(a|b)));
+  [a,b,c,d,e,f,g,h]=[(t1+t2)&M,a,b,c,(d+t1)&M,e,f,g];}return[a,b,c,d,e,f,g,h];}
+function expand(w,first=16){for(let i=first;i<64;i++){const x=w[i-2],y=w[i-15];const a=(x>>17n)^(x<<15n)^(x>>19n)^(x<<13n)^(x>>10n),b=(y>>7n)^(y<<25n)^(y>>18n)^(y<<14n)^(y>>3n);w.push((a+w[i-7]+b+w[i-16])&M)}}
+const be=(d,i,n)=>{let v=0n;for(let k=0;k<n;k++)v=(v<<8n)|BigInt(d[i+k]);return v};
+function init(d){const w=Array(14).fill(0n);w.push(be(d,0,3));w.push(be(d,3,4));
+ for(let i=16;i<30;i++){let v=SCHED[i-16];if(i-2>=14)v+=i===16?(s1(w[i-2])^S1ADJ):s1(w[i-2]);if(i-7>=14)v+=w[i-7];if(i-15>=14)v+=i===29?(s0(w[i-15])^S0ADJ):s0(w[i-15]);w.push(u(v));}
+ w.push(u(s1(w[28])+w[23]+s0(w[15])+w[14]+ADJ-K[14]));expand(w,31);const r=rounds(STATE,w,14);return INIT.map((x,i)=>(x+r[i])&M);}
+function sha(data){const len=57+data.length;const z=(((55-len)%64)+64)%64;const p=new Uint8Array(data.length-7+1+z+8);p.set(data.subarray(7));p[data.length-7]=0x80;
+ let bits=BigInt(len)*8n;for(let i=0;i<8;i++)p[p.length-1-i]=Number((bits>>BigInt(8*i))&0xFFn);
+ let st=init(data.subarray(0,7));for(let o=0;o<p.length;o+=64){const w=[];for(let i=0;i<16;i++)w.push(be(p,o+i*4,4));expand(w);const r=rounds(st,w);st=st.map((x,i)=>(x+r[i])&M);}
+ const out=new Uint8Array(32);st.forEach((v,i)=>{for(let k=0;k<4;k++)out[i*4+k]=Number((v>>BigInt(24-8*k))&0xFFn)});return out;}
+const le=(d,i)=>BigInt(d[i])|(BigInt(d[i+1])<<8n)|(BigInt(d[i+2])<<16n)|(BigInt(d[i+3])<<24n);
+function cs64(data,dg){let ka=le(dg,0)|1n,kb=le(dg,4)|1n;const F=[(ka*CSF)&M,(kb*CSF)&M];const terms=CS.map((c,i)=>(c[0]*F[i%2])&M),offs=CS.map(c=>c[1]);
+ const n=data.length+1,pl=n+((4-n%4)%4);const p=new Uint8Array(pl);p.set(data,1);const words=[];for(let i=0;i<pl;i+=4)words.push(le(p,i));if(words.length%2)words.push(0n);
+ words.forEach((w,i)=>{let t=w*(i%2===0?ka:kb),o=rol16(w)*(i%2===0?0xEF0569FBn:0xC31713DBn);if(i===0){t+=CA0*F[0];o+=CA1}terms.push(t&M);offs.push(o&M)});
+ let sa=0n,sl=0n,st=0n,acc=0n;
+ for(let i=0;i<terms.length;i+=2){const x=terms[i],y=terms[i+1];let t=rol16((offs[i]+x)&M),q=(t*0x76F50F34n)&M;sa+=(rol16(q)*0xC3EFEA97n+q)&M;t=rol16((offs[i+1]+y)&M);q=(t*0x1881CE3Cn)&M;sl=(rol16(q)*0x35BD1EC9n+q)&M;sa=(sa+sl)&M;
+  st=(st*ka+x)&M;st=(rol16(st)*0xCF98B111n)&M;st=(rol16(st)*0x87085B9Fn)&M;st=(rol16(st)*0x12CEB96Dn)&M;st=(rol16(st)*0x257E1D83n)&M;acc+=st;
+  t=(st*kb+y)&M;t=(rol16(t)*0xA27416F5n)&M;t=(rol16(t)*0xD38396FFn)&M;st=(rol16((rol16(t)*0x7C932B89n)&M)*0xBFA49F69n)&M;acc=(acc+st)&M;}
+ return[sl^st,sa^acc];}
+const hex=b=>Array.from(b,x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();
+function token(unixSec,TOKEN){let s=Math.floor(unixSec)+11644473600;s-=s%300;const data=new TextEncoder().encode(String(s)+'0000000'+TOKEN);const dg=sha(data);const[c0,c1]=cs64(data,dg);
+ const cb=new Uint8Array(8);[c0,c1].forEach((v,i)=>{for(let k=0;k<4;k++)cb[i*4+k]=Number((v>>BigInt(8*k))&0xFFn)});return hex(cb)+'-'+hex(dg);}
+return{token};})();
+const TTS=(()=>{const TOKEN='6A5AA1D4EAFF4E9FB37E23D68491D6F4',VER='2-143.0.3650.75',BASE='speech.platform.bing.com/consumer/speech/synthesize/readaloud';
+const SIL=Uint8Array.from(atob('//NkxHwAAANIAAAAAFVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV'),c=>c.charCodeAt(0));
+const FRAME=0.024,BPS=6000; // 24 kHz, 48 kbit/s mono MP3
+const uid=()=>crypto.randomUUID().replace(/-/g,'');
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+const sign=(n,u)=>(n>=0?'+':'')+Math.round(n)+u;
+function longName(s){const m=/^([a-z]{2,})-([A-Z]{2,})-(.+Neural)$/.exec(s);if(!m)return s;let[,l,r,n]=m;const i=n.indexOf('-');if(i>0){r+='-'+n.slice(0,i);n=n.slice(i+1)}return`Microsoft Server Speech Text to Speech Voice (${l}-${r}, ${n})`}
+function stamp(){const p=new Date().toUTCString().split(/[ ,]+/);return`${p[0]} ${p[2]} ${p[1]} ${p[3]} ${p[4]} GMT+0000 (Coordinated Universal Time)`}
+const gecUrl=()=>`Sec-MS-GEC=${GEC.token(Date.now()/1000,TOKEN)}&Sec-MS-GEC-Version=${VER}`;
+const voicesUrl=()=>`https://${BASE}/voices/list?trustedclienttoken=${TOKEN}&${gecUrl()}`;
+function applyFixes(text,fixes){for(const line of (fixes||'').split('\n')){const i=line.indexOf('=');if(i<1)continue;const a=line.slice(0,i).trim(),b=line.slice(i+1).trim();if(a)text=text.split(a).join(b)}return text}
+const blen=s=>new TextEncoder().encode(s).length;
+// Split into units. Each unit: {text, pause} where pause is 'para', 'sent' or null (applied after the unit).
+function splitText(text,bySentence,maxBytes=2400){const units=[];const paras=text.replace(/\r/g,'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
+ paras.forEach((p,pi)=>{let sents=p.match(/[^.!?…。؟!?]+[.!?…。؟!?]*["'”’)\]]*\s*|[.!?…。؟!?]+\s*/g)||[p];
+  const hard=[];for(const s of sents){if(blen(s)<=maxBytes){hard.push(s);continue}let cur='';for(const w of s.split(/(\s+)/)){if(blen(cur+w)>maxBytes&&cur){hard.push(cur);cur=''}cur+=w}if(cur)hard.push(cur)}
+  let group=[];if(bySentence)group=hard.map(s=>s.trim()).filter(Boolean);else{let cur='';for(const s of hard){if(cur&&blen(cur+s)>maxBytes){group.push(cur.trim());cur=''}cur+=s}if(cur.trim())group.push(cur.trim())}
+  group.forEach((g,gi)=>units.push({text:g,pause:gi<group.length-1?(bySentence?'sent':null):(pi<paras.length-1?'para':null)}))});return units}
+function synthUnit(text,o,WS,signal){return new Promise((res,rej)=>{const url=`wss://${BASE}/edge/v1?TrustedClientToken=${TOKEN}&ConnectionId=${uid()}&${gecUrl()}`;
+ let ws;try{ws=WS(url)}catch(e){return rej(e)}ws.binaryType='arraybuffer';const audio=[],words=[];let done=false,opened=false;
+ const fin=(err)=>{if(done)return;done=true;clearTimeout(to);try{ws.close()}catch(e){}if(signal)signal.removeEventListener('abort',onAbort);err?rej(err):res({audio,words})};
+ const onAbort=()=>fin(new Error('Stopped'));if(signal){if(signal.aborted)return fin(new Error('Stopped'));signal.addEventListener('abort',onAbort)}
+ let to=setTimeout(()=>fin(new Error('Timed out waiting for the voice service')),45000);
+ ws.onopen=()=>{opened=true;const d=stamp();
+  ws.send(`X-Timestamp:${d}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"true"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n`);
+  ws.send(`X-RequestId:${uid()}\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${d}Z\r\nPath:ssml\r\n\r\n<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='${longName(o.voice)}'><prosody pitch='${sign(o.pitch,'Hz')}' rate='${sign(o.rate,'%')}' volume='${sign(o.volume,'%')}'>${esc(text)}</prosody></voice></speak>`)};
+ ws.onmessage=e=>{if(typeof e.data==='string'){const i=e.data.indexOf('\r\n\r\n'),head=e.data.slice(0,i),body=e.data.slice(i+4);
+   if(head.includes('Path:audio.metadata')){try{for(const m of JSON.parse(body).Metadata)if(m.Type==='WordBoundary')words.push({t:m.Data.Offset/1e7,d:m.Data.Duration/1e7,text:m.Data.text.Text})}catch(x){}}
+   else if(head.includes('Path:turn.end'))fin(audio.length?null:new Error('No audio was returned for this passage'))}
+  else{const b=new Uint8Array(e.data);if(b.length<2)return;const hl=(b[0]<<8)|b[1];const head=new TextDecoder().decode(b.subarray(2,2+hl));if(head.includes('Path:audio')&&b.length>2+hl)audio.push(b.slice(2+hl))}};
+ ws.onerror=()=>fin(new Error(opened?'Connection to the voice service was lost':'The voice service refused the connection (open this page in Microsoft Edge, and check your internet connection and PC clock)'));
+ ws.onclose=()=>{if(!done)fin(audio.length?null:new Error('The voice service closed the connection without audio'))}})}
+async function synth(text,o,WS,onProg,signal){const units=splitText(applyFixes(text,o.fixes),o.pauseSent>0);if(!units.length)throw new Error('There is no text to read');
+ const parts=[],words=[];let bytes=0;
+ for(let i=0;i<units.length;i++){if(onProg)onProg(i,units.length);let r,err;for(let a=0;a<3;a++){try{r=await synthUnit(units[i].text,o,WS,signal);err=null;break}catch(e){err=e;if(e.message==='Stopped')break;await new Promise(z=>setTimeout(z,1200*(a+1)))}}
+  if(err)throw err;const t0=bytes/BPS;r.words.forEach(w=>words.push({t:t0+w.t,d:w.d,text:w.text,unit:i}));r.audio.forEach(a=>{parts.push(a);bytes+=a.length});
+  const p=units[i].pause==='para'?o.pausePara+(o.pauseSent||0):units[i].pause==='sent'?o.pauseSent:0;const n=Math.round(p/FRAME);for(let k=0;k<n;k++){parts.push(SIL);bytes+=SIL.length}}
+ if(onProg)onProg(units.length,units.length);return{parts,words,seconds:bytes/BPS,bytes,units:units.length}}
+function srt(words,maxChars=74,maxWords=14){const f=t=>{const ms=Math.max(0,Math.round(t*1000));const p=(n,l=2)=>String(n).padStart(l,'0');return`${p(Math.floor(ms/3600000))}:${p(Math.floor(ms/60000)%60)}:${p(Math.floor(ms/1000)%60)},${p(ms%1000,3)}`};
+ const cues=[];let cur=[];const flush=()=>{if(cur.length){cues.push(cur);cur=[]}};
+ words.forEach((w,i)=>{const prev=cur[cur.length-1];if(prev){const len=cur.reduce((a,x)=>a+x.text.length+1,0);if(w.unit!==prev.unit||w.t-(prev.t+prev.d)>0.28||len+w.text.length>maxChars||cur.length>=maxWords)flush()}cur.push(w)});flush();
+ const two=s=>{if(s.length<=42)return s;const ws=s.split(' ');let best=null;for(let i=1;i<ws.length;i++){const a=ws.slice(0,i).join(' '),b=ws.slice(i).join(' ');const d=Math.abs(a.length-b.length);if(!best||d<best[0])best=[d,a+'\n'+b]}return best?best[1]:s};
+ return cues.map((c,i)=>{const end=Math.min(c[c.length-1].t+c[c.length-1].d+0.15,cues[i+1]?cues[i+1][0].t-0.02:1e9);return`${i+1}\n${f(c[0].t)} --> ${f(end)}\n${two(c.map(w=>w.text).join(' '))}\n`}).join('\n')}
+return{synth,srt,splitText,voicesUrl,applyFixes}})();
+/*ENGINE-END*/
+const $=id=>document.getElementById(id);
+let VOICES=[["ar-MA-JamalNeural","M"],["ar-MA-MounaNeural","F"],["ar-SA-HamedNeural","M"],["ar-SA-ZariyahNeural","F"],["ar-EG-SalmaNeural","F"],["ar-EG-ShakirNeural","M"],["ar-AE-FatimaNeural","F"],["ar-AE-HamdanNeural","M"],["ar-DZ-AminaNeural","F"],["ar-DZ-IsmaelNeural","M"],["ar-TN-HediNeural","M"],["ar-TN-ReemNeural","F"],["en-US-AndrewNeural","M"],["en-US-AndrewMultilingualNeural","M"],["en-US-BrianNeural","M"],["en-US-BrianMultilingualNeural","M"],["en-US-ChristopherNeural","M"],["en-US-EricNeural","M"],["en-US-GuyNeural","M"],["en-US-RogerNeural","M"],["en-US-SteffanNeural","M"],["en-US-AvaNeural","F"],["en-US-AvaMultilingualNeural","F"],["en-US-EmmaNeural","F"],["en-US-EmmaMultilingualNeural","F"],["en-US-AriaNeural","F"],["en-US-JennyNeural","F"],["en-US-MichelleNeural","F"],["en-US-AnaNeural","F"],["en-GB-RyanNeural","M"],["en-GB-ThomasNeural","M"],["en-GB-LibbyNeural","F"],["en-GB-SoniaNeural","F"],["en-GB-MaisieNeural","F"],["en-AU-WilliamMultilingualNeural","M"],["en-AU-NatashaNeural","F"],["en-CA-LiamNeural","M"],["en-CA-ClaraNeural","F"],["en-IN-PrabhatNeural","M"],["en-IN-NeerjaNeural","F"],["en-IE-ConnorNeural","M"],["en-IE-EmilyNeural","F"],["fr-FR-HenriNeural","M"],["fr-FR-RemyMultilingualNeural","M"],["fr-FR-DeniseNeural","F"],["fr-FR-EloiseNeural","F"],["fr-FR-VivienneMultilingualNeural","F"],["fr-BE-GerardNeural","M"],["fr-BE-CharlineNeural","F"],["fr-CA-AntoineNeural","M"],["fr-CA-JeanNeural","M"],["fr-CA-ThierryNeural","M"],["fr-CA-SylvieNeural","F"],["fr-CH-FabriceNeural","M"],["fr-CH-ArianeNeural","F"],["es-ES-AlvaroNeural","M"],["es-ES-ElviraNeural","F"],["es-ES-XimenaNeural","F"],["es-MX-JorgeNeural","M"],["es-MX-DaliaNeural","F"],["de-DE-ChristophNeural","M"],["de-DE-TanjaNeural","F"]];
+const LANGS={ar:'Arabic',en:'English',fr:'French',es:'Spanish',de:'German'};
+const DEF={lang:'en',voice:'en-US-AndrewNeural',rate:0,pitch:0,vol:0,pPara:0.4,pSent:0,fname:'narration',rep:''};
+let S={...DEF};try{S={...DEF,...JSON.parse(localStorage.getItem('edgeTtsTool')||'{}')}}catch(e){}
+const save=()=>{try{localStorage.setItem('edgeTtsTool',JSON.stringify(S))}catch(e){}};
+if(!/Edg\//.test(navigator.userAgent))$('edgeWarn').style.display='block';
+function langName(c){if(LANGS[c])return LANGS[c];try{return new Intl.DisplayNames(['en'],{type:'language'}).of(c)||c}catch(e){return c}}
+function fillLang(){const codes=[...new Set(VOICES.map(v=>v[0].split('-')[0]))].sort((a,b)=>langName(a).localeCompare(langName(b)));$('lang').innerHTML=codes.map(c=>`<option value="${c}">${langName(c)}</option>`).join('');if(!codes.includes(S.lang))S.lang=codes[0];$('lang').value=S.lang;fillVoice()}
+function fillVoice(){const list=VOICES.filter(v=>v[0].startsWith(S.lang+'-'));$('voice').innerHTML=list.map(v=>{const p=v[0].split('-');return`<option value="${v[0]}">${p.slice(2).join(' ').replace('Neural','').replace('Multilingual',' (multilingual)')} · ${v[1]=='M'?'male':'female'} · ${p[0]}-${p[1]}</option>`}).join('');if(!list.some(v=>v[0]===S.voice))S.voice=list[0][0];$('voice').value=S.voice}
+function show(){$('rateV').textContent=(S.rate>=0?'+':'')+S.rate+' %';$('pitchV').textContent=(S.pitch>=0?'+':'')+S.pitch+' Hz';$('volV').textContent=(S.vol>=0?'+':'')+S.vol+' %';$('pParaV').textContent=(+S.pPara).toFixed(1)+' s';$('pSentV').textContent=(+S.pSent).toFixed(2)+' s'}
+function load(){for(const k of['rate','pitch','vol','pPara','pSent','fname','rep'])$(k).value=S[k];fillLang();show();count()}
+function count(){const t=$('text').value;const w=(t.trim().match(/\S+/g)||[]).length;$('count').textContent=t.length.toLocaleString()+' characters · '+w.toLocaleString()+' words';const m=w/(150*(1+S.rate/100));$('est').textContent=w?'about '+(m<1?Math.round(m*60)+' s':m.toFixed(1)+' min')+' of audio':''}
+for(const k of['rate','pitch','vol','pPara','pSent'])$(k).oninput=e=>{S[k]=+e.target.value;show();count();save()};
+$('fname').oninput=e=>{S.fname=e.target.value;save()};$('rep').oninput=e=>{S.rep=e.target.value;save()};
+$('lang').onchange=e=>{S.lang=e.target.value;fillVoice();save()};$('voice').onchange=e=>{S.voice=e.target.value;save()};
+$('text').oninput=count;$('loadBtn').onclick=()=>$('file').click();
+$('file').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('text').value=await f.text();if(S.fname===DEF.fname){S.fname=f.name.replace(/\.[^.]+$/,'');$('fname').value=S.fname;save()}count()};
+$('reset').onclick=()=>{S={...DEF};save();load()};
+$('reload').onclick=async()=>{status('Loading the full voice list…');try{const r=await fetch(TTS.voicesUrl());if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();VOICES=j.map(v=>[v.ShortName,v.Gender[0]]);fillLang();status(VOICES.length+' voices loaded','ok')}catch(e){status('Could not load the full list ('+e.message+'). The built-in voices still work.','err')}};
+function status(s,c){$('status').textContent=s;$('status').className=c||''}
+let ctrl=null,urls=[];
+async function run(preview){let text=$('text').value.trim();if(!text){status('Type or paste some text first.','err');return}if(preview)text=text.slice(0,250).replace(/\s+\S*$/,'')||text.slice(0,250);
+ const o={voice:S.voice,rate:S.rate,pitch:S.pitch,volume:S.vol,pausePara:+S.pPara,pauseSent:+S.pSent,fixes:S.rep};
+ ctrl=new AbortController();$('go').disabled=$('preview').disabled=true;$('stop').disabled=false;$('prog').style.width='0';status('Connecting…');const t0=performance.now();
+ try{const r=await TTS.synth(text,o,u=>new WebSocket(u),(i,n)=>{$('prog').style.width=(100*i/n)+'%';if(i<n)status(`Generating passage ${i+1} of ${n}…`)},ctrl.signal);
+  urls.forEach(u=>URL.revokeObjectURL(u));urls=[];const mp3=URL.createObjectURL(new Blob(r.parts,{type:'audio/mpeg'}));urls.push(mp3);$('out').style.display='block';$('player').src=mp3;
+  const name=(S.fname.trim()||'narration').replace(/[\\/:*?"<>|]+/g,'_')+(preview?'_preview':'');$('dlMp3').href=mp3;$('dlMp3').download=name+'.mp3';
+  const s=TTS.srt(r.words);const su=URL.createObjectURL(new Blob([s],{type:'application/x-subrip'}));urls.push(su);$('dlSrt').href=su;$('dlSrt').download=name+'.srt';$('dlSrt').style.display=s?'inline-block':'none';
+  const m=Math.floor(r.seconds/60),sec=Math.round(r.seconds%60);$('info').textContent=`${preview?'Preview · ':''}${m}:${String(sec).padStart(2,'0')} · ${(r.bytes/1048576).toFixed(2)} MB · ${S.voice} · speed ${$('rateV').textContent}, pitch ${$('pitchV').textContent}`;
+  status(`Done in ${((performance.now()-t0)/1000).toFixed(1)} s.`,'ok');if(preview)$('player').play().catch(()=>{})}
+ catch(e){status(e.message==='Stopped'?'Stopped.':e.message,e.message==='Stopped'?'':'err')}
+ finally{$('go').disabled=$('preview').disabled=false;$('stop').disabled=true;ctrl=null}}
+$('go').onclick=()=>run(false);$('preview').onclick=()=>run(true);$('stop').onclick=()=>ctrl&&ctrl.abort();
+load();
+</script></body></html>
